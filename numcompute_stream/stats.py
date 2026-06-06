@@ -1,20 +1,6 @@
-"""
-stats.py — Descriptive statistics and streaming statistics.
-
-Extends the original NumCompute stats module with a StreamingStats class
-that supports chunk-wise updates via Welford's online algorithm.
-
-Author: [Your Name]
-Module: numcompute_stream.stats
-"""
-
 from __future__ import annotations
 import numpy as np
 
-
-# ---------------------------------------------------------------------------
-# Original batch functions (unchanged from assignment 2.1)
-# ---------------------------------------------------------------------------
 
 def mean(arr, axis=None):
     """Arithmetic mean, ignoring NaN values.
@@ -22,15 +8,11 @@ def mean(arr, axis=None):
     Parameters
     ----------
     arr : array-like
-        Input data of any shape.
     axis : int or None
-        Axis along which the mean is computed. None flattens first.
 
     Returns
     -------
     np.ndarray or float
-
-    Time complexity: O(n)
     """
     arr = np.asarray(arr, dtype=float)
     return np.nanmean(arr, axis=axis)
@@ -42,15 +24,11 @@ def median(arr, axis=None):
     Parameters
     ----------
     arr : array-like
-        Input data of any shape.
     axis : int or None
-        Axis along which the median is computed.
 
     Returns
     -------
     np.ndarray or float
-
-    Time complexity: O(n log n)
     """
     arr = np.asarray(arr, dtype=float)
     return np.nanmedian(arr, axis=axis)
@@ -64,13 +42,10 @@ def std(arr, axis=None, ddof=0):
     arr : array-like
     axis : int or None
     ddof : int
-        0 for population, 1 for sample.
 
     Returns
     -------
     np.ndarray or float
-
-    Time complexity: O(n)
     """
     arr = np.asarray(arr, dtype=float)
     return np.nanstd(arr, axis=axis, ddof=ddof)
@@ -88,31 +63,55 @@ def var(arr, axis=None, ddof=0):
     Returns
     -------
     np.ndarray or float
-
-    Time complexity: O(n)
     """
     arr = np.asarray(arr, dtype=float)
     return np.nanvar(arr, axis=axis, ddof=ddof)
 
 
 def minimum(arr, axis=None):
-    """Minimum value, ignoring NaN entries."""
+    """Minimum value, ignoring NaN entries.
+
+    Parameters
+    ----------
+    arr : array-like
+    axis : int or None
+
+    Returns
+    -------
+    np.ndarray or float
+    """
     arr = np.asarray(arr, dtype=float)
     return np.nanmin(arr, axis=axis)
 
 
 def maximum(arr, axis=None):
-    """Maximum value, ignoring NaN entries."""
+    """Maximum value, ignoring NaN entries.
+
+    Parameters
+    ----------
+    arr : array-like
+    axis : int or None
+
+    Returns
+    -------
+    np.ndarray or float
+    """
     arr = np.asarray(arr, dtype=float)
     return np.nanmax(arr, axis=axis)
 
 
 def summary(arr, axis=None):
-    """Dictionary of descriptive statistics for quick exploration.
+    """Dictionary of descriptive statistics.
+
+    Parameters
+    ----------
+    arr : array-like
+    axis : int or None
 
     Returns
     -------
-    dict with keys: mean, median, std, min, max, count_nan
+    dict
+        Keys: ``mean``, ``median``, ``std``, ``min``, ``max``, ``count_nan``.
     """
     arr = np.asarray(arr, dtype=float)
     return {
@@ -131,15 +130,13 @@ def welford_update(existing_aggregate, new_value):
     Parameters
     ----------
     existing_aggregate : tuple of (int, float, float)
-        Current state (count, mean, M2).
+        Current state ``(count, mean, M2)``.
     new_value : float
 
     Returns
     -------
     tuple of (int, float, float)
-        Updated (count, mean, M2).
-
-    Time complexity: O(1)
+        Updated ``(count, mean, M2)``.
     """
     count, mean_val, m2 = existing_aggregate
     count += 1
@@ -151,17 +148,23 @@ def welford_update(existing_aggregate, new_value):
 
 
 def welford_finalize(count, mean_val, m2, ddof=0):
-    """Finalise Welford accumulator into (mean, variance).
+    """Finalise Welford accumulator into ``(mean, variance)``.
+
+    Parameters
+    ----------
+    count : int
+    mean_val : float
+    m2 : float
+    ddof : int
 
     Returns
     -------
     tuple of (float, float)
-        (mean, variance). Returns (nan, nan) when count <= ddof.
+        ``(mean, variance)``. Returns ``(nan, nan)`` when ``count <= ddof``.
     """
     if count == 0 or count <= ddof:
         return float("nan"), float("nan")
-    variance = m2 / (count - ddof)
-    return mean_val, variance
+    return mean_val, m2 / (count - ddof)
 
 
 def histogram(arr, bins=10, range=None):
@@ -175,8 +178,13 @@ def histogram(arr, bins=10, range=None):
 
     Returns
     -------
-    counts : np.ndarray, shape (bins,)
-    bin_edges : np.ndarray, shape (bins + 1,)
+    counts : np.ndarray, shape ``(bins,)``
+    bin_edges : np.ndarray, shape ``(bins + 1,)``
+
+    Raises
+    ------
+    ValueError
+        If ``bins < 1``.
     """
     if bins < 1:
         raise ValueError(f"bins must be >= 1, got {bins}.")
@@ -191,12 +199,17 @@ def quantile(arr, q, axis=None):
     Parameters
     ----------
     arr : array-like
-    q : float or array-like, values in [0, 1]
+    q : float or array-like, values in ``[0, 1]``
     axis : int or None
 
     Returns
     -------
     np.ndarray or float
+
+    Raises
+    ------
+    ValueError
+        If any value in ``q`` is outside ``[0, 1]``.
     """
     arr = np.asarray(arr, dtype=float)
     q = np.asarray(q, dtype=float)
@@ -205,61 +218,41 @@ def quantile(arr, q, axis=None):
     return np.nanpercentile(arr, q * 100, axis=axis)
 
 
-# ---------------------------------------------------------------------------
-# NEW: Streaming statistics class
-# ---------------------------------------------------------------------------
-
 class StreamingStats:
     """Per-feature streaming statistics using Welford's online algorithm.
-
-    Supports incremental updates via .update(X_chunk). Works on 2-D arrays
-    where rows are samples and columns are features.
 
     Parameters
     ----------
     window_size : int or None
-        If set, only the last ``window_size`` chunks are used for
-        histogram/quantile estimates (sliding window). None = all data.
+        If set, only the last ``window_size`` chunks are kept for
+        histogram and quantile estimates.
 
     Examples
     --------
     >>> ss = StreamingStats()
     >>> for chunk in chunks:
     ...     ss.update(chunk)
-    >>> print(ss.get_mean())    # per-feature mean
-    >>> print(ss.get_std())     # per-feature std
+    >>> ss.get_mean()
     """
 
     def __init__(self, window_size: int | None = None) -> None:
         self.window_size = window_size
-
-        # Welford state per feature: count, mean, M2
         self._count: int = 0
         self._mean: np.ndarray | None = None
         self._M2: np.ndarray | None = None
-
-        # For min/max tracking
         self._global_min: np.ndarray | None = None
         self._global_max: np.ndarray | None = None
-
-        # Sliding window buffer (list of 2-D chunks)
         self._window_buffer: list[np.ndarray] = []
         self._window_total_rows: int = 0
-
         self.n_features_: int | None = None
         self.n_samples_seen_: int = 0
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def update(self, X_chunk: np.ndarray) -> "StreamingStats":
-        """Incorporate a new chunk of data into the running statistics.
+        """Incorporate a new chunk into the running statistics.
 
         Parameters
         ----------
         X_chunk : np.ndarray, shape (n_samples, n_features)
-            New data chunk. NaN values are ignored per feature.
 
         Returns
         -------
@@ -268,7 +261,7 @@ class StreamingStats:
         Raises
         ------
         ValueError
-            If chunk shape is inconsistent with previously seen data.
+            If feature count is inconsistent with previous chunks.
         """
         X_chunk = np.asarray(X_chunk, dtype=float)
         if X_chunk.ndim == 1:
@@ -278,7 +271,6 @@ class StreamingStats:
 
         n_samples, n_features = X_chunk.shape
 
-        # Initialise on first call
         if self.n_features_ is None:
             self.n_features_ = n_features
             self._mean = np.zeros(n_features, dtype=float)
@@ -290,11 +282,9 @@ class StreamingStats:
                 f"Feature count mismatch: expected {self.n_features_}, got {n_features}."
             )
 
-        # Handle empty chunk gracefully
         if n_samples == 0:
             return self
 
-        # Welford update — vectorised over features, loop over samples
         for i in range(n_samples):
             row = X_chunk[i]
             valid = ~np.isnan(row)
@@ -306,19 +296,13 @@ class StreamingStats:
             delta2 = np.where(valid, row - self._mean, 0.0)
             self._M2 += delta * delta2
 
-        # Min / max (ignore NaNs)
-        chunk_min = np.nanmin(X_chunk, axis=0)
-        chunk_max = np.nanmax(X_chunk, axis=0)
-        self._global_min = np.minimum(self._global_min, chunk_min)
-        self._global_max = np.maximum(self._global_max, chunk_max)
-
+        self._global_min = np.minimum(self._global_min, np.nanmin(X_chunk, axis=0))
+        self._global_max = np.maximum(self._global_max, np.nanmax(X_chunk, axis=0))
         self.n_samples_seen_ += n_samples
 
-        # Sliding window buffer
         if self.window_size is not None:
             self._window_buffer.append(X_chunk.copy())
             self._window_total_rows += n_samples
-            # Trim old chunks if window exceeded
             while (self._window_total_rows - self._window_buffer[0].shape[0]
                    >= self.window_size):
                 removed = self._window_buffer.pop(0)
@@ -327,7 +311,7 @@ class StreamingStats:
         return self
 
     def get_mean(self) -> np.ndarray:
-        """Return per-feature running mean.
+        """Per-feature running mean.
 
         Returns
         -------
@@ -337,12 +321,11 @@ class StreamingStats:
         return self._mean.copy()
 
     def get_var(self, ddof: int = 0) -> np.ndarray:
-        """Return per-feature running variance.
+        """Per-feature running variance.
 
         Parameters
         ----------
         ddof : int
-            0 for population, 1 for sample.
 
         Returns
         -------
@@ -354,7 +337,7 @@ class StreamingStats:
         return self._M2 / (self._count - ddof)
 
     def get_std(self, ddof: int = 0) -> np.ndarray:
-        """Return per-feature running standard deviation.
+        """Per-feature running standard deviation.
 
         Returns
         -------
@@ -363,45 +346,55 @@ class StreamingStats:
         return np.sqrt(self.get_var(ddof=ddof))
 
     def get_min(self) -> np.ndarray:
-        """Return per-feature global minimum seen so far."""
+        """Per-feature global minimum seen so far.
+
+        Returns
+        -------
+        np.ndarray, shape (n_features,)
+        """
         self._check_fitted()
         return self._global_min.copy()
 
     def get_max(self) -> np.ndarray:
-        """Return per-feature global maximum seen so far."""
+        """Per-feature global maximum seen so far.
+
+        Returns
+        -------
+        np.ndarray, shape (n_features,)
+        """
         self._check_fitted()
         return self._global_max.copy()
 
     def get_histogram(self, feature_idx: int = 0, bins: int = 10):
-        """Compute histogram for one feature from buffered window data.
+        """Histogram for one feature from the window buffer.
 
         Parameters
         ----------
         feature_idx : int
-            Column index of the feature.
         bins : int
-            Number of histogram bins.
 
         Returns
         -------
         counts : np.ndarray, shape (bins,)
         bin_edges : np.ndarray, shape (bins + 1,)
+
+        Raises
+        ------
+        RuntimeError
+            If window_size is not set or buffer is empty.
         """
         self._check_fitted()
-        if self.window_size is not None and self._window_buffer:
-            data = np.concatenate(self._window_buffer, axis=0)
-        elif self.window_size is None:
+        if self.window_size is None:
             raise RuntimeError(
-                "Histogram over all data requires window_size to be set "
-                "(unbounded history not stored). Use window_size=N."
+                "Histogram requires window_size to be set."
             )
-        else:
+        if not self._window_buffer:
             raise RuntimeError("No data in window buffer yet.")
-        col = data[:, feature_idx]
-        return histogram(col, bins=bins)
+        data = np.concatenate(self._window_buffer, axis=0)
+        return histogram(data[:, feature_idx], bins=bins)
 
     def get_quantile(self, q, feature_idx: int = 0):
-        """Compute quantile for one feature from buffered window data.
+        """Quantile for one feature from the window buffer.
 
         Parameters
         ----------
@@ -411,19 +404,22 @@ class StreamingStats:
         Returns
         -------
         float or np.ndarray
+
+        Raises
+        ------
+        RuntimeError
+            If window_size is not set or buffer is empty.
         """
         self._check_fitted()
-        if self.window_size is not None and self._window_buffer:
-            data = np.concatenate(self._window_buffer, axis=0)
-        else:
+        if self.window_size is None or not self._window_buffer:
             raise RuntimeError(
                 "Quantile requires window_size to be set and data to be present."
             )
-        col = data[:, feature_idx]
-        return quantile(col, q)
+        data = np.concatenate(self._window_buffer, axis=0)
+        return quantile(data[:, feature_idx], q)
 
     def summary_dict(self) -> dict:
-        """Return a summary dict of all running statistics.
+        """Summary of all running statistics.
 
         Returns
         -------
@@ -455,10 +451,6 @@ class StreamingStats:
         self.n_features_ = None
         self.n_samples_seen_ = 0
         return self
-
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
 
     def _check_fitted(self) -> None:
         if self.n_features_ is None:

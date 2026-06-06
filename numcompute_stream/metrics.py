@@ -1,24 +1,8 @@
-"""
-metrics.py — Classification metrics with streaming support.
-
-Extends the original NumCompute metrics module with a StreamingMetrics class
-that accumulates results chunk by chunk via .update(), supports .reset() and
-.result(), and provides rolling-window metrics.
-
-Author: [Your Name]
-Module: numcompute_stream.metrics
-"""
-
 from __future__ import annotations
 import numpy as np
 
 
-# ---------------------------------------------------------------------------
-# Original batch functions (unchanged from assignment 2.1)
-# ---------------------------------------------------------------------------
-
 def _validate_inputs(y_true, y_pred):
-    """Check that y_true and y_pred are 1-D arrays of equal length."""
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)
     if y_true.ndim != 1 or y_pred.ndim != 1:
@@ -43,9 +27,12 @@ def accuracy(y_true, y_pred):
 
     Returns
     -------
-    float in [0.0, 1.0]
+    float
 
-    Time complexity: O(n)
+    Raises
+    ------
+    ValueError
+        If inputs are not 1-D or have different lengths.
     """
     y_true, y_pred = _validate_inputs(y_true, y_pred)
     return float(np.mean(y_true == y_pred))
@@ -62,9 +49,12 @@ def confusion_matrix(y_true, y_pred):
     Returns
     -------
     np.ndarray, shape (C, C)
-        cm[i, j] = count of true class i predicted as j.
+        ``cm[i, j]`` counts samples with true label ``i`` predicted as ``j``.
 
-    Time complexity: O(n + C^2)
+    Raises
+    ------
+    ValueError
+        If inputs are not 1-D or have different lengths.
     """
     y_true, y_pred = _validate_inputs(y_true, y_pred)
     classes = np.unique(np.concatenate([y_true, y_pred]))
@@ -84,13 +74,17 @@ def precision(y_true, y_pred, average="macro"):
     ----------
     y_true : array-like, shape (n,)
     y_pred : array-like, shape (n,)
-    average : str, 'macro' or 'binary'
+    average : str
+        ``'macro'`` or ``'binary'``.
 
     Returns
     -------
     float
 
-    Time complexity: O(n * C)
+    Raises
+    ------
+    ValueError
+        If inputs are invalid or ``average='binary'`` with more than 2 classes.
     """
     y_true, y_pred = _validate_inputs(y_true, y_pred)
     classes = np.unique(np.concatenate([y_true, y_pred]))
@@ -120,13 +114,17 @@ def recall(y_true, y_pred, average="macro"):
     ----------
     y_true : array-like, shape (n,)
     y_pred : array-like, shape (n,)
-    average : str, 'macro' or 'binary'
+    average : str
+        ``'macro'`` or ``'binary'``.
 
     Returns
     -------
     float
 
-    Time complexity: O(n * C)
+    Raises
+    ------
+    ValueError
+        If inputs are invalid or ``average='binary'`` with more than 2 classes.
     """
     y_true, y_pred = _validate_inputs(y_true, y_pred)
     classes = np.unique(np.concatenate([y_true, y_pred]))
@@ -161,8 +159,6 @@ def f1(y_true, y_pred, average="macro"):
     Returns
     -------
     float
-
-    Time complexity: O(n * C)
     """
     p = precision(y_true, y_pred, average=average)
     r = recall(y_true, y_pred, average=average)
@@ -170,7 +166,7 @@ def f1(y_true, y_pred, average="macro"):
 
 
 def mse(y_true, y_pred):
-    """Mean squared error for regression.
+    """Mean squared error.
 
     Parameters
     ----------
@@ -181,7 +177,10 @@ def mse(y_true, y_pred):
     -------
     float
 
-    Time complexity: O(n)
+    Raises
+    ------
+    ValueError
+        If inputs are not 1-D or have different lengths.
     """
     y_true, y_pred = _validate_inputs(y_true, y_pred)
     return float(np.mean((y_true - y_pred) ** 2))
@@ -195,13 +194,18 @@ def roc_curve(y_true_binary, y_scores):
     y_true_binary : array-like, shape (n,)
         Binary labels (0 or 1).
     y_scores : array-like, shape (n,)
-        Scores for positive class.
+        Scores for the positive class.
 
     Returns
     -------
-    fpr, tpr, thresholds : np.ndarray
+    fpr : np.ndarray
+    tpr : np.ndarray
+    thresholds : np.ndarray
 
-    Time complexity: O(n log n)
+    Raises
+    ------
+    ValueError
+        If inputs are not 1-D, differ in length, or are not binary.
     """
     y_true_binary, y_scores = _validate_inputs(y_true_binary, y_scores)
     unique_labels = np.unique(y_true_binary)
@@ -241,31 +245,22 @@ def auc(fpr, tpr):
     return float(np.trapezoid(tpr, fpr))
 
 
-# ---------------------------------------------------------------------------
-# NEW: Streaming metrics class
-# ---------------------------------------------------------------------------
-
 class StreamingMetrics:
     """Accumulate classification metrics incrementally over streaming chunks.
-
-    Supports multi-class classification. All metrics are computed from the
-    accumulated confusion matrix. A rolling window can be set to track only
-    the most recent N samples.
 
     Parameters
     ----------
     n_classes : int or None
-        Number of classes. If None, inferred from first .update() call.
+        Number of classes. Inferred from first ``.update()`` call if None.
     window_size : int or None
-        If set, only the last ``window_size`` samples are used for rolling
-        metrics. None means accumulate all data forever.
+        If set, only the last ``window_size`` samples are used for rolling metrics.
 
     Examples
     --------
     >>> sm = StreamingMetrics()
     >>> for chunk_true, chunk_pred in stream:
     ...     sm.update(chunk_true, chunk_pred)
-    >>> print(sm.result())
+    >>> sm.result()
     """
 
     def __init__(
@@ -275,35 +270,22 @@ class StreamingMetrics:
     ) -> None:
         self.n_classes = n_classes
         self.window_size = window_size
-
-        # Cumulative confusion matrix
         self._cm: np.ndarray | None = None
         self._classes: np.ndarray | None = None
-
-        # Per-chunk history for rolling window and time-series plots
         self._history: list[dict] = []
-
-        # Rolling window buffer: list of (y_true, y_pred) tuples
         self._window_true: list[np.ndarray] = []
         self._window_pred: list[np.ndarray] = []
         self._window_n: int = 0
-
         self.n_samples_seen_: int = 0
         self.n_chunks_seen_: int = 0
 
-    # ------------------------------------------------------------------
-    # Core streaming API
-    # ------------------------------------------------------------------
-
     def update(self, y_true_chunk, y_pred_chunk) -> "StreamingMetrics":
-        """Incorporate a new chunk of predictions into the running metrics.
+        """Incorporate a new chunk of predictions.
 
         Parameters
         ----------
         y_true_chunk : array-like, shape (n,)
-            Ground-truth labels for this chunk.
         y_pred_chunk : array-like, shape (n,)
-            Predicted labels for this chunk.
 
         Returns
         -------
@@ -312,60 +294,50 @@ class StreamingMetrics:
         Raises
         ------
         ValueError
-            If inputs have mismatched lengths or wrong dimensions.
+            If inputs have mismatched lengths.
         """
         y_true = np.asarray(y_true_chunk).ravel()
         y_pred = np.asarray(y_pred_chunk).ravel()
 
         if y_true.shape != y_pred.shape:
             raise ValueError(
-                f"Length mismatch: y_true has {len(y_true)}, "
-                f"y_pred has {len(y_pred)}."
+                f"Length mismatch: y_true has {len(y_true)}, y_pred has {len(y_pred)}."
             )
 
         n = len(y_true)
         if n == 0:
             return self
 
-        # Discover / validate classes
         chunk_classes = np.unique(np.concatenate([y_true, y_pred]))
         if self._classes is None:
             self._classes = chunk_classes
             nc = len(self._classes)
             self._cm = np.zeros((nc, nc), dtype=np.int64)
         else:
-            # Merge any new classes seen
             merged = np.union1d(self._classes, chunk_classes)
             if len(merged) > len(self._classes):
-                old_nc = len(self._classes)
                 new_nc = len(merged)
                 new_cm = np.zeros((new_nc, new_nc), dtype=np.int64)
-                # Map old indices into expanded matrix
                 old_idx = np.searchsorted(merged, self._classes)
                 new_cm[np.ix_(old_idx, old_idx)] = self._cm
                 self._cm = new_cm
                 self._classes = merged
 
-        # Update cumulative confusion matrix
         label_to_idx = {label: idx for idx, label in enumerate(self._classes)}
         true_idx = np.array([label_to_idx[l] for l in y_true])
         pred_idx = np.array([label_to_idx[l] for l in y_pred])
         np.add.at(self._cm, (true_idx, pred_idx), 1)
 
-        # Compute per-chunk metrics and log to history
-        chunk_acc = float(np.mean(y_true == y_pred))
         self._history.append({
             "chunk":    self.n_chunks_seen_,
             "n":        n,
-            "accuracy": chunk_acc,
+            "accuracy": float(np.mean(y_true == y_pred)),
         })
 
-        # Rolling window buffer
         if self.window_size is not None:
             self._window_true.append(y_true.copy())
             self._window_pred.append(y_pred.copy())
             self._window_n += n
-            # Trim oldest entries
             while self._window_n - len(self._window_true[0]) >= self.window_size:
                 removed = self._window_true.pop(0)
                 self._window_pred.pop(0)
@@ -393,35 +365,42 @@ class StreamingMetrics:
         return self
 
     def result(self) -> dict:
-        """Return current cumulative metrics.
+        """Current cumulative metrics.
 
         Returns
         -------
-        dict with keys: accuracy, precision, recall, f1, confusion_matrix
+        dict with keys: accuracy, precision, recall, f1, confusion_matrix,
+        n_samples_seen, n_chunks_seen
         """
         self._check_fitted()
         y_true, y_pred = self._reconstruct_from_cm()
         return {
-            "accuracy":         self._cm_accuracy(),
-            "precision":        precision(y_true, y_pred, average="macro"),
-            "recall":           recall(y_true, y_pred, average="macro"),
-            "f1":               f1(y_true, y_pred, average="macro"),
-            "confusion_matrix": self._cm.copy(),
-            "n_samples_seen":   self.n_samples_seen_,
-            "n_chunks_seen":    self.n_chunks_seen_,
+            "accuracy":          self._cm_accuracy(),
+            "precision":         precision(y_true, y_pred, average="macro"),
+            "recall":            recall(y_true, y_pred, average="macro"),
+            "f1":                f1(y_true, y_pred, average="macro"),
+            "confusion_matrix":  self._cm.copy(),
+            "n_samples_seen":    self.n_samples_seen_,
+            "n_chunks_seen":     self.n_chunks_seen_,
         }
 
-    # ------------------------------------------------------------------
-    # Convenience getters
-    # ------------------------------------------------------------------
-
     def get_accuracy(self) -> float:
-        """Cumulative accuracy across all seen chunks."""
+        """Cumulative accuracy across all seen chunks.
+
+        Returns
+        -------
+        float
+        """
         self._check_fitted()
         return self._cm_accuracy()
 
     def get_confusion_matrix(self) -> np.ndarray:
-        """Cumulative confusion matrix."""
+        """Cumulative confusion matrix.
+
+        Returns
+        -------
+        np.ndarray
+        """
         self._check_fitted()
         return self._cm.copy()
 
@@ -435,11 +414,11 @@ class StreamingMetrics:
         return [h["accuracy"] for h in self._history]
 
     def get_rolling_accuracy(self) -> float:
-        """Accuracy computed only over the rolling window.
+        """Accuracy over the rolling window only.
 
         Returns
         -------
-        float. Returns nan if window is empty or window_size is None.
+        float. Returns nan if window_size is None or window is empty.
         """
         if self.window_size is None or self._window_n == 0:
             return float("nan")
@@ -448,16 +427,20 @@ class StreamingMetrics:
         return float(np.mean(y_true == y_pred))
 
     def get_auc(self, pos_label=None) -> float:
-        """AUC for binary problems using the cumulative confusion matrix.
+        """AUC for binary problems from the cumulative confusion matrix.
 
         Parameters
         ----------
         pos_label : scalar or None
-            Positive class label. If None, uses the last class.
 
         Returns
         -------
         float
+
+        Raises
+        ------
+        ValueError
+            If not a binary problem.
         """
         self._check_fitted()
         if len(self._classes) != 2:
@@ -470,12 +453,7 @@ class StreamingMetrics:
         tn = float(np.sum(self._cm) - tp - fn - fp)
         tpr = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
-        # Approximate AUC from single (fpr, tpr) point + (0,0) and (1,1)
         return float(0.5 * (tpr * (1 - fpr) + (1 + tpr) * fpr))
-
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
 
     def _check_fitted(self) -> None:
         if self._cm is None:
@@ -484,18 +462,12 @@ class StreamingMetrics:
             )
 
     def _cm_accuracy(self) -> float:
-        """Accuracy directly from confusion matrix diagonal."""
         total = float(self._cm.sum())
         if total == 0:
             return 0.0
         return float(np.trace(self._cm)) / total
 
     def _reconstruct_from_cm(self):
-        """Reconstruct flat y_true / y_pred arrays from confusion matrix.
-
-        Used to pass into the batch precision/recall/f1 functions.
-        This is O(n_samples) memory — only called in .result().
-        """
         rows, cols = np.nonzero(self._cm)
         counts = self._cm[rows, cols]
         y_true = np.repeat(self._classes[rows], counts)

@@ -1,22 +1,8 @@
-"""
-visualise.py — Reusable visualisation functions for streaming ML pipelines.
-
-Provides matplotlib-based plotting utilities for monitoring model performance
-over streaming data chunks. All functions can save to file or display inline.
-
-Author: [Your Name]
-Module: numcompute_stream.visualise
-"""
-
 from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
-
-# ---------------------------------------------------------------------------
-# Required functions (per assignment spec)
-# ---------------------------------------------------------------------------
 
 def plot_metric_over_time(
     metric_values: list[float] | np.ndarray,
@@ -29,28 +15,20 @@ def plot_metric_over_time(
     save_path: str | None = None,
     figsize: tuple = (9, 4),
 ) -> plt.Figure:
-    """Plot a metric (e.g. accuracy) across streaming chunks.
+    """Plot a metric across streaming chunks.
 
     Parameters
     ----------
     metric_values : list of float or np.ndarray
-        One value per chunk.
     title : str
-        Plot title.
     ylabel : str
-        Y-axis label (e.g. 'Accuracy', 'F1 Score').
     xlabel : str
-        X-axis label.
     color : str
-        Line colour.
     show_rolling : bool
-        If True, overlay a rolling mean line.
     rolling_window : int
-        Window size for the rolling mean.
     save_path : str or None
-        If provided, save the figure to this path instead of displaying.
+        If provided, saves the figure instead of displaying it.
     figsize : tuple
-        Figure size in inches.
 
     Returns
     -------
@@ -64,19 +42,15 @@ def plot_metric_over_time(
     chunks = np.arange(1, len(values) + 1)
 
     fig, ax = plt.subplots(figsize=figsize)
-
     ax.plot(chunks, values, color=color, linewidth=1.5,
             marker="o", markersize=4, alpha=0.7, label=ylabel)
 
     if show_rolling and len(values) >= rolling_window:
         kernel = np.ones(rolling_window) / rolling_window
         rolling = np.convolve(values, kernel, mode="valid")
-        rolling_x = chunks[rolling_window - 1:]
-        ax.plot(rolling_x, rolling, color=color, linewidth=2.5,
-                linestyle="--", alpha=1.0,
-                label=f"Rolling mean (w={rolling_window})")
+        ax.plot(chunks[rolling_window - 1:], rolling, color=color, linewidth=2.5,
+                linestyle="--", alpha=1.0, label=f"Rolling mean (w={rolling_window})")
 
-    # Reference line at max
     if len(values) > 0:
         ax.axhline(np.nanmax(values), color="grey", linewidth=0.8,
                    linestyle=":", alpha=0.6, label=f"Max: {np.nanmax(values):.3f}")
@@ -114,21 +88,13 @@ def compare_models(
     Parameters
     ----------
     metric1 : list or np.ndarray
-        Per-chunk metric values for model 1.
     metric2 : list or np.ndarray
-        Per-chunk metric values for model 2.
     labels : tuple of str
-        Legend labels for the two models.
     title : str
-        Plot title.
     ylabel : str
-        Y-axis label.
     xlabel : str
-        X-axis label.
     colors : tuple of str
-        Colours for each model line.
     save_path : str or None
-        If provided, save instead of display.
     figsize : tuple
 
     Returns
@@ -137,13 +103,10 @@ def compare_models(
 
     Examples
     --------
-    >>> compare_models(tree_accs, rf_accs,
-    ...                labels=('Single Tree', 'Random Forest'))
+    >>> compare_models(tree_accs, rf_accs, labels=('Single Tree', 'Random Forest'))
     """
     m1 = np.asarray(metric1, dtype=float)
     m2 = np.asarray(metric2, dtype=float)
-
-    n = max(len(m1), len(m2))
     chunks1 = np.arange(1, len(m1) + 1)
     chunks2 = np.arange(1, len(m2) + 1)
 
@@ -153,18 +116,15 @@ def compare_models(
         sharex=False,
     )
 
-    # Main comparison plot
     ax_main.plot(chunks1, m1, color=colors[0], linewidth=2,
                  marker="o", markersize=4, label=labels[0])
     ax_main.plot(chunks2, m2, color=colors[1], linewidth=2,
                  marker="s", markersize=4, label=labels[1])
 
-    # Shade the gap between them
     min_len = min(len(m1), len(m2))
     if min_len > 0:
-        x_shared = np.arange(1, min_len + 1)
         ax_main.fill_between(
-            x_shared, m1[:min_len], m2[:min_len],
+            np.arange(1, min_len + 1), m1[:min_len], m2[:min_len],
             alpha=0.12, color="grey"
         )
 
@@ -174,12 +134,12 @@ def compare_models(
     ax_main.grid(True, alpha=0.3, linestyle="--")
     ax_main.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
 
-    # Difference plot (m1 - m2)
     if min_len > 0:
         diff = m1[:min_len] - m2[:min_len]
         x_shared = np.arange(1, min_len + 1)
-        bar_colors = [colors[0] if d >= 0 else colors[1] for d in diff]
-        ax_diff.bar(x_shared, diff, color=bar_colors, alpha=0.7, width=0.7)
+        ax_diff.bar(x_shared, diff,
+                    color=["#4C72B0" if d >= 0 else "#DD8452" for d in diff],
+                    alpha=0.7, width=0.7)
         ax_diff.axhline(0, color="black", linewidth=0.8)
         ax_diff.set_ylabel(f"{labels[0]} − {labels[1]}", fontsize=9)
         ax_diff.set_xlabel(xlabel, fontsize=11)
@@ -206,22 +166,13 @@ def plot_predictions_vs_ground_truth(
 ) -> plt.Figure:
     """Visualise predictions vs actual labels on the latest chunk.
 
-    Shows a strip chart where each sample is a vertical tick, coloured
-    green for correct and red for incorrect predictions. Also shows
-    a bar chart of per-class accuracy.
-
     Parameters
     ----------
     y_true : array-like, shape (n,)
-        Ground-truth labels.
     y_pred : array-like, shape (n,)
-        Predicted labels.
     title : str
-        Figure title.
     max_samples : int
-        Truncate to the last ``max_samples`` for readability.
     save_path : str or None
-        If provided, save instead of display.
     figsize : tuple
 
     Returns
@@ -235,7 +186,6 @@ def plot_predictions_vs_ground_truth(
     y_true = np.asarray(y_true).ravel()
     y_pred = np.asarray(y_pred).ravel()
 
-    # Truncate for readability
     if len(y_true) > max_samples:
         y_true = y_true[-max_samples:]
         y_pred = y_pred[-max_samples:]
@@ -244,58 +194,40 @@ def plot_predictions_vs_ground_truth(
     correct = y_true == y_pred
 
     fig, (ax_strip, ax_bar) = plt.subplots(
-        1, 2,
-        figsize=figsize,
+        1, 2, figsize=figsize,
         gridspec_kw={"width_ratios": [3, 1]},
     )
     fig.suptitle(title, fontsize=12)
 
-    # Strip chart
     colors_strip = ["#2ca02c" if c else "#d62728" for c in correct]
-    ax_strip.scatter(
-        np.arange(n), y_true,
-        c=colors_strip, marker="|", s=60, linewidths=1.5,
-        label="True label"
-    )
-    ax_strip.scatter(
-        np.arange(n), y_pred,
-        c=colors_strip, marker=".", s=20, alpha=0.5,
-        label="Predicted"
-    )
+    ax_strip.scatter(np.arange(n), y_true, c=colors_strip, marker="|", s=60,
+                     linewidths=1.5, label="True label")
+    ax_strip.scatter(np.arange(n), y_pred, c=colors_strip, marker=".", s=20,
+                     alpha=0.5, label="Predicted")
 
-    # Connect true to pred with thin lines for wrong predictions
     for i in range(n):
         if not correct[i]:
-            ax_strip.plot(
-                [i, i], [y_true[i], y_pred[i]],
-                color="#d62728", linewidth=0.5, alpha=0.4
-            )
+            ax_strip.plot([i, i], [y_true[i], y_pred[i]],
+                          color="#d62728", linewidth=0.5, alpha=0.4)
 
     acc = float(np.mean(correct))
     ax_strip.set_xlabel("Sample index", fontsize=10)
     ax_strip.set_ylabel("Class label", fontsize=10)
     ax_strip.set_title(
-        f"n={n} | acc={acc:.3f} | "
-        f"correct={correct.sum()} | wrong={n - correct.sum()}",
+        f"n={n} | acc={acc:.3f} | correct={correct.sum()} | wrong={n - correct.sum()}",
         fontsize=9
     )
     ax_strip.grid(True, alpha=0.2, linestyle="--")
 
-    # Per-class accuracy bar chart
     classes = np.unique(y_true)
-    class_accs = []
-    for c in classes:
-        mask = y_true == c
-        if mask.sum() > 0:
-            class_accs.append(float(np.mean(y_pred[mask] == c)))
-        else:
-            class_accs.append(0.0)
-
-    bar_colors = ["#4C72B0" if a >= 0.7 else "#DD8452" if a >= 0.4 else "#d62728"
-                  for a in class_accs]
+    class_accs = [
+        float(np.mean(y_pred[y_true == c] == c)) if (y_true == c).sum() > 0 else 0.0
+        for c in classes
+    ]
     ax_bar.barh(
         [str(c) for c in classes], class_accs,
-        color=bar_colors, edgecolor="white", height=0.6
+        color=["#4C72B0" if a >= 0.7 else "#DD8452" if a >= 0.4 else "#d62728" for a in class_accs],
+        edgecolor="white", height=0.6
     )
     ax_bar.axvline(1.0, color="grey", linewidth=0.8, linestyle=":")
     ax_bar.set_xlim(0, 1.1)
@@ -312,10 +244,6 @@ def plot_predictions_vs_ground_truth(
 
     return fig
 
-
-# ---------------------------------------------------------------------------
-# Additional utility plots
-# ---------------------------------------------------------------------------
 
 def plot_confusion_matrix(
     cm: np.ndarray,
@@ -357,11 +285,8 @@ def plot_confusion_matrix(
     thresh = cm.max() / 2.0
     for i in range(n):
         for j in range(n):
-            ax.text(
-                j, i, str(cm[i, j]),
-                ha="center", va="center", fontsize=10,
-                color="white" if cm[i, j] > thresh else "black"
-            )
+            ax.text(j, i, str(cm[i, j]), ha="center", va="center", fontsize=10,
+                    color="white" if cm[i, j] > thresh else "black")
 
     ax.set_ylabel("True label", fontsize=11)
     ax.set_xlabel("Predicted label", fontsize=11)

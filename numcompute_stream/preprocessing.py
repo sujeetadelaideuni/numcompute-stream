@@ -1,65 +1,40 @@
-"""
-preprocessing.py — Data preprocessing with streaming support.
-
-Extends the original NumCompute preprocessing module. All scalers and
-transformers now support .partial_fit() for incremental chunk-wise updates
-using Welford's online algorithm for running mean/variance.
-
-Author: [Your Name]
-Module: numcompute_stream.preprocessing
-"""
-
 from __future__ import annotations
 import warnings
 import numpy as np
 
 
 class StandardScaler:
-    """Per-feature standardisation: (X - mean) / scale.
+    """Per-feature standardisation: ``(X - mean) / scale``.
 
-    Supports both batch .fit() and streaming .partial_fit() using
-    Welford's online algorithm for numerically stable mean/variance.
+    Supports batch ``.fit()`` and streaming ``.partial_fit()`` using
+    Welford's online algorithm.
 
     Parameters
     ----------
     with_mean : bool
-        Subtract mean if True (default).
     with_std : bool
-        Divide by std if True (default).
 
     Examples
     --------
-    Batch:
-        >>> scaler = StandardScaler()
-        >>> X_scaled = scaler.fit_transform(X_train)
-
-    Streaming:
-        >>> scaler = StandardScaler()
-        >>> for chunk in chunks:
-        ...     scaler.partial_fit(chunk)
-        >>> X_scaled = scaler.transform(X_new)
+    >>> scaler = StandardScaler()
+    >>> for chunk in chunks:
+    ...     scaler.partial_fit(chunk)
+    >>> X_scaled = scaler.transform(X)
     """
 
     def __init__(self, with_mean: bool = True, with_std: bool = True) -> None:
         self.with_mean = with_mean
         self.with_std = with_std
-
         self.mean_: np.ndarray | None = None
         self.scale_: np.ndarray | None = None
         self.n_samples_seen_: int = 0
         self.n_features_: int | None = None
-
-        # Welford state
         self._welford_count: int = 0
         self._welford_mean: np.ndarray | None = None
         self._welford_M2: np.ndarray | None = None
 
-    # ------------------------------------------------------------------
-    # Batch API
-    # ------------------------------------------------------------------
-
     def fit(self, X: np.ndarray) -> "StandardScaler":
-        """Fit scaler on the full dataset at once.
+        """Fit scaler on the full dataset.
 
         Parameters
         ----------
@@ -72,6 +47,61 @@ class StandardScaler:
         X = self._validate(X)
         self._reset()
         return self.partial_fit(X)
+
+    def partial_fit(self, X: np.ndarray) -> "StandardScaler":
+        """Incrementally update scaler statistics with a new chunk.
+
+        Parameters
+        ----------
+        X : np.ndarray, shape (n_samples, n_features)
+
+        Returns
+        -------
+        self
+
+        Raises
+        ------
+        ValueError
+            If feature count is inconsistent with previous calls.
+        """
+        X = self._validate(X)
+        n_samples, n_features = X.shape
+
+        if self._welford_mean is None:
+            self.n_features_ = n_features
+            self._welford_mean = np.zeros(n_features, dtype=float)
+            self._welford_M2 = np.zeros(n_features, dtype=float)
+            self._welford_count = 0
+        elif n_features != self.n_features_:
+            raise ValueError(
+                f"Feature count mismatch: expected {self.n_features_}, got {n_features}."
+            )
+
+        for i in range(n_samples):
+            row = X[i]
+            valid = ~np.isnan(row)
+            if not np.any(valid):
+                continue
+            self._welford_count += 1
+            delta = np.where(valid, row - self._welford_mean, 0.0)
+            self._welford_mean += delta / self._welford_count
+            delta2 = np.where(valid, row - self._welford_mean, 0.0)
+            self._welford_M2 += delta * delta2
+
+        self.n_samples_seen_ = self._welford_count
+        self.mean_ = self._welford_mean.copy()
+
+        var = self._welford_M2 / self._welford_count if self._welford_count > 1 else np.zeros(n_features)
+        std_arr = np.sqrt(var)
+        zero_std = std_arr == 0.0
+        if np.any(zero_std):
+            warnings.warn(
+                "Zero standard deviation detected; scale set to 1 for those features.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        self.scale_ = np.where(zero_std, 1.0, std_arr)
+        return self
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply scaling to X.
@@ -86,7 +116,8 @@ class StandardScaler:
 
         Raises
         ------
-        RuntimeError if not fitted.
+        RuntimeError
+            If not fitted.
         """
         self._check_fitted()
         X = np.asarray(X, dtype=float)
@@ -120,80 +151,6 @@ class StandardScaler:
             X += self.mean_
         return X
 
-    # ------------------------------------------------------------------
-    # Streaming API
-    # ------------------------------------------------------------------
-
-    def partial_fit(self, X: np.ndarray) -> "StandardScaler":
-        """Incrementally update scaler statistics with a new data chunk.
-
-        Uses Welford's online algorithm for numerically stable updates.
-        Can be called multiple times before calling .transform().
-
-        Parameters
-        ----------
-        X : np.ndarray, shape (n_samples, n_features)
-            New data chunk. NaN values are ignored.
-
-        Returns
-        -------
-        self
-
-        Raises
-        ------
-        ValueError
-            If feature count is inconsistent with previous calls.
-        """
-        X = self._validate(X)
-        n_samples, n_features = X.shape
-
-        if self._welford_mean is None:
-            self.n_features_ = n_features
-            self._welford_mean = np.zeros(n_features, dtype=float)
-            self._welford_M2 = np.zeros(n_features, dtype=float)
-            self._welford_count = 0
-        elif n_features != self.n_features_:
-            raise ValueError(
-                f"Feature count mismatch: expected {self.n_features_}, got {n_features}."
-            )
-
-        # Welford update — vectorised over features
-        for i in range(n_samples):
-            row = X[i]
-            valid = ~np.isnan(row)
-            if not np.any(valid):
-                continue
-            self._welford_count += 1
-            delta = np.where(valid, row - self._welford_mean, 0.0)
-            self._welford_mean += delta / self._welford_count
-            delta2 = np.where(valid, row - self._welford_mean, 0.0)
-            self._welford_M2 += delta * delta2
-
-        self.n_samples_seen_ = self._welford_count
-
-        # Recompute exposed attributes
-        self.mean_ = self._welford_mean.copy()
-        if self._welford_count > 1:
-            var = self._welford_M2 / self._welford_count
-        else:
-            var = np.zeros(n_features, dtype=float)
-
-        std_arr = np.sqrt(var)
-        zero_std = std_arr == 0.0
-        if np.any(zero_std):
-            warnings.warn(
-                "Zero standard deviation detected; scale set to 1 for those features.",
-                RuntimeWarning,
-                stacklevel=2,
-            )
-        self.scale_ = np.where(zero_std, 1.0, std_arr)
-
-        return self
-
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
-
     def _validate(self, X: np.ndarray) -> np.ndarray:
         X = np.asarray(X, dtype=float)
         if X.ndim != 2:
@@ -217,15 +174,12 @@ class StandardScaler:
 
 
 class MinMaxScaler:
-    """Per-feature min-max scaling to a target range [min, max].
-
-    Supports both batch .fit() and streaming .partial_fit() by tracking
-    running global min/max across chunks.
+    """Per-feature min-max scaling to a target range.
 
     Parameters
     ----------
     feature_range : tuple of (float, float)
-        Target output range. Default (0.0, 1.0).
+        Target output range. Default ``(0.0, 1.0)``.
     """
 
     def __init__(self, feature_range: tuple[float, float] = (0.0, 1.0)) -> None:
@@ -246,7 +200,7 @@ class MinMaxScaler:
         return self.partial_fit(X)
 
     def partial_fit(self, X: np.ndarray) -> "MinMaxScaler":
-        """Incrementally update min/max with a new data chunk.
+        """Incrementally update min/max with a new chunk.
 
         Parameters
         ----------
@@ -255,6 +209,11 @@ class MinMaxScaler:
         Returns
         -------
         self
+
+        Raises
+        ------
+        ValueError
+            If feature count is inconsistent with previous calls.
         """
         X = self._validate(X)
         n_samples, n_features = X.shape
@@ -268,18 +227,24 @@ class MinMaxScaler:
                 f"Feature count mismatch: expected {self.n_features_}, got {n_features}."
             )
 
-        chunk_min = np.nanmin(X, axis=0)
-        chunk_max = np.nanmax(X, axis=0)
-        self.data_min_ = np.minimum(self.data_min_, chunk_min)
-        self.data_max_ = np.maximum(self.data_max_, chunk_max)
-
+        self.data_min_ = np.minimum(self.data_min_, np.nanmin(X, axis=0))
+        self.data_max_ = np.maximum(self.data_max_, np.nanmax(X, axis=0))
         span = self.data_max_ - self.data_min_
         self.scale_ = np.where(span == 0.0, 1.0, span)
         self.n_samples_seen_ += n_samples
         return self
 
     def transform(self, X: np.ndarray) -> np.ndarray:
-        """Scale X to the target feature range."""
+        """Scale X to the target feature range.
+
+        Parameters
+        ----------
+        X : np.ndarray, shape (n_samples, n_features)
+
+        Returns
+        -------
+        np.ndarray, same shape
+        """
         self._check_fitted()
         X = np.asarray(X, dtype=float)
         lo, hi = self.feature_range
@@ -291,10 +256,20 @@ class MinMaxScaler:
         return X_scaled
 
     def fit_transform(self, X: np.ndarray) -> np.ndarray:
+        """Fit then transform in one step."""
         return self.fit(X).transform(X)
 
     def inverse_transform(self, X: np.ndarray) -> np.ndarray:
-        """Reverse the min-max scaling."""
+        """Reverse the min-max scaling.
+
+        Parameters
+        ----------
+        X : np.ndarray, shape (n_samples, n_features)
+
+        Returns
+        -------
+        np.ndarray, same shape
+        """
         self._check_fitted()
         X = np.asarray(X, dtype=float).copy()
         lo, hi = self.feature_range
@@ -322,15 +297,12 @@ class MinMaxScaler:
 class SimpleImputer:
     """Fill NaNs with per-feature statistics or a constant.
 
-    Supports streaming via .partial_fit() which maintains running estimates
-    of mean/median using Welford (mean) or a reservoir for median.
-
     Parameters
     ----------
     strategy : str
-        'mean', 'median', or 'constant'.
+        ``'mean'``, ``'median'``, or ``'constant'``.
     fill_value : float
-        Used when strategy='constant'.
+        Used when ``strategy='constant'``.
     """
 
     def __init__(self, strategy: str = "mean", fill_value: float = 0.0) -> None:
@@ -341,13 +313,9 @@ class SimpleImputer:
         self.statistics_: np.ndarray | None = None
         self.n_features_: int | None = None
         self.n_samples_seen_: int = 0
-
-        # Welford state for streaming mean
         self._welford_count: int = 0
         self._welford_mean: np.ndarray | None = None
         self._welford_M2: np.ndarray | None = None
-
-        # For median: store all valid values per feature (bounded by window_size)
         self._reservoir: list[list] | None = None
 
     def fit(self, X: np.ndarray) -> "SimpleImputer":
@@ -368,6 +336,11 @@ class SimpleImputer:
         Returns
         -------
         self
+
+        Raises
+        ------
+        ValueError
+            If feature count is inconsistent with previous calls.
         """
         X = np.asarray(X, dtype=float)
         if X.ndim != 2:
@@ -408,13 +381,9 @@ class SimpleImputer:
         elif self.strategy == "median":
             for j in range(n_features):
                 col = X[:, j]
-                valid = col[~np.isnan(col)]
-                self._reservoir[j].extend(valid.tolist())
+                self._reservoir[j].extend(col[~np.isnan(col)].tolist())
             for j in range(n_features):
-                if self._reservoir[j]:
-                    self.statistics_[j] = float(np.median(self._reservoir[j]))
-                else:
-                    self.statistics_[j] = 0.0
+                self.statistics_[j] = float(np.median(self._reservoir[j])) if self._reservoir[j] else 0.0
 
         self.n_samples_seen_ += n_samples
         return self
@@ -429,6 +398,11 @@ class SimpleImputer:
         Returns
         -------
         np.ndarray, same shape, no NaNs
+
+        Raises
+        ------
+        RuntimeError
+            If not fitted.
         """
         if self.statistics_ is None:
             raise RuntimeError("SimpleImputer is not fitted yet.")
@@ -439,6 +413,7 @@ class SimpleImputer:
         return X
 
     def fit_transform(self, X: np.ndarray) -> np.ndarray:
+        """Fit then transform in one step."""
         return self.fit(X).transform(X)
 
     def _reset(self):
@@ -454,14 +429,14 @@ class SimpleImputer:
 class OneHotEncoder:
     """One-hot expansion for discrete columns.
 
-    Supports streaming via .partial_fit() which incrementally discovers
-    new categories in each chunk.
+    Supports streaming via ``.partial_fit()`` which incrementally
+    discovers new categories in each chunk.
 
     Examples
     --------
     >>> enc = OneHotEncoder()
     >>> enc.partial_fit(chunk1)
-    >>> enc.partial_fit(chunk2)   # may discover new categories
+    >>> enc.partial_fit(chunk2)
     >>> X_ohe = enc.transform(X)
     """
 
@@ -489,6 +464,11 @@ class OneHotEncoder:
         Returns
         -------
         self
+
+        Raises
+        ------
+        ValueError
+            If feature count is inconsistent with previous calls.
         """
         X = np.asarray(X)
         if X.ndim != 2:
@@ -503,10 +483,8 @@ class OneHotEncoder:
                 raise ValueError(
                     f"Feature count mismatch: expected {self.n_features_}, got {n_features}."
                 )
-            # Merge any new categories
             for j in range(n_features):
-                new_cats = np.unique(X[:, j])
-                self.categories_[j] = np.union1d(self.categories_[j], new_cats)
+                self.categories_[j] = np.union1d(self.categories_[j], np.unique(X[:, j]))
 
         self.n_samples_seen_ += n_samples
         return self
@@ -521,6 +499,11 @@ class OneHotEncoder:
         Returns
         -------
         np.ndarray, shape (n_samples, sum of category counts)
+
+        Raises
+        ------
+        RuntimeError
+            If not fitted.
         """
         if self.categories_ is None:
             raise RuntimeError("OneHotEncoder is not fitted yet.")
@@ -532,4 +515,5 @@ class OneHotEncoder:
         return np.hstack(blocks) if blocks else np.empty((X.shape[0], 0))
 
     def fit_transform(self, X: np.ndarray) -> np.ndarray:
+        """Fit then transform in one step."""
         return self.fit(X).transform(X)
