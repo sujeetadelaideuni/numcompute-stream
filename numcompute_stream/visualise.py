@@ -1,3 +1,13 @@
+"""
+visualise.py — Visualisation utilities for streaming ML pipelines.
+
+Provides reusable matplotlib-based plotting functions for monitoring
+model performance over streaming chunks. Supports saving to file or
+inline display in notebooks.
+
+Author: Sujeet Ghosh
+Module: numcompute_stream.visualise
+"""
 from __future__ import annotations
 import numpy as np
 import matplotlib.pyplot as plt

@@ -1,281 +1,325 @@
-# NumCompute
+# NumCompute-Stream
 
-A modular, production-grade scientific computing toolkit built with **plain Python + NumPy only**.
+A streaming, decision tree–based machine learning framework extending the NumCompute package. Implements incremental learning, ensemble methods, and real-time visualisation using only NumPy and matplotlib.
 
-NumCompute replicates the core functionality of ML libraries like scikit-learn from scratch — with an emphasis on deep algorithmic understanding, numerical stability, fully vectorised computation, and clean software engineering. No pandas, no scikit-learn, no external ML/DL libraries permitted.
-
-> **Course:** COMP-5004 — Programming for AI  
-> **University:** University of Adelaide
+**Assignment 2.2 — Individual Project**
 
 ---
 
-## Team
+## Overview
 
-| Person | Name | Modules Owned |
-|--------|------|---------------|
-| Person 1 | Shaun D'souza | `io.py`, `preprocessing.py` |
-| Person 2 | Manini Sikri | `sort_search.py`, `rank.py` |
-| Person 3 | Sujeet Ghosh | `stats.py`, `metrics.py` |
-| Person 4 | Sushmeet Matharu | `optim.py`, `pipeline.py`, `benchmarking.py`, demo |
+NumCompute-Stream extends the original NumCompute package (Assignment 2.1) with a full streaming ML framework. All new components support chunk-wise updates via `.partial_fit()`, simulating a real-world online learning scenario where data arrives incrementally.
+
+The framework supports:
+- Single decision trees and ensemble methods (Bagging, Random Forest)
+- Incremental preprocessing with running statistics via Welford's algorithm
+- Streaming metrics and statistics with rolling window support
+- A fully chained pipeline with streaming compatibility
+- Built-in visualisation for monitoring model performance over time
 
 ---
 
 ## Project Structure
 
 ```
-NumCompute/
-├── numcompute/
+numcompute-stream-solo/
+│
+├── numcompute/                    # Original NumCompute package (Assignment 2.1)
 │   ├── __init__.py
-│   ├── io.py              # CSV loading (streaming/chunking), dtype handling
-│   ├── preprocessing.py   # StandardScaler, MinMaxScaler, Imputer, OneHotEncoder
-│   ├── sort_search.py     # Stable sort, multi-key sort, top-k, quickselect, binary search
-│   ├── rank.py            # Ranking with tie handling; percentiles
-│   ├── stats.py           # Descriptive statistics, histogram, quantiles (Welford streaming)
-│   ├── metrics.py         # Accuracy, Precision, Recall, F1, MSE, Confusion Matrix, ROC/AUC
-│   ├── optim.py           # Finite-difference gradients, Jacobian
-│   ├── pipeline.py        # Transformer/Estimator protocol, Pipeline chaining
-│   ├── utils.py           # Distances, activations, logsumexp, top-k helpers, batching
-│   └── benchmarking.py    # Micro-benchmark harness, vectorised vs loop comparisons
+│   ├── io.py                      # CSV loading and saving
+│   ├── utils.py                   # Distance, similarity, activation functions
+│   ├── stats.py                   # Batch statistical functions
+│   ├── metrics.py                 # Batch classification metrics
+│   ├── preprocessing.py           # Batch scalers and encoders
+│   ├── pipeline.py                # Batch pipeline and FeatureUnion
+│   ├── benchmarking.py            # Timing and benchmarking utilities
+│   ├── rank.py                    # Ranking functions
+│   ├── sort_search.py             # Sorting and searching
+│   └── optim.py                   # Gradient and Jacobian estimation
+│
+├── numcompute_stream/             # Streaming ML framework (Assignment 2.2)
+│   ├── __init__.py
+│   ├── stats.py                   # StreamingStats with Welford's algorithm
+│   ├── metrics.py                 # StreamingMetrics with rolling window
+│   ├── preprocessing.py           # Scalers and imputers with partial_fit
+│   ├── tree.py                    # DecisionTreeClassifier from scratch
+│   ├── ensemble.py                # EnsembleClassifier (Bagging, Random Forest)
+│   ├── pipeline.py                # Streaming Pipeline and FeatureUnion
+│   ├── stream.py                  # StreamTrainer for chunk-wise training
+│   └── visualise.py               # Plotting utilities for streaming metrics
+│
 ├── tests/
-│   ├── __init__.py
-│   ├── test_io.py
-│   ├── test_preprocessing.py
-│   ├── test_sort_search.py
-│   ├── test_rank.py
-│   ├── test_stats.py
-│   ├── test_metrics.py
-│   ├── test_optim.py
-│   └── test_pipeline.py
-├── demo/
-│   └── quickstart.ipynb   # End-to-end demo notebook
+│   ├── test_numcompute_stream.py  # 39 unit tests for streaming modules
+│   ├── test_benchmarking.py       # Tests for benchmarking utilities
+│   ├── test_io.py                 # Tests for I/O functions
+│   ├── test_metrics.py            # Tests for batch metrics
+│   ├── test_optim.py              # Tests for optimisation functions
+│   ├── test_pipeline.py           # Tests for batch pipeline
+│   ├── test_preprocessing.py      # Tests for batch preprocessing
+│   ├── test_rank.py               # Tests for ranking functions
+│   ├── test_sort_search.py        # Tests for sort and search
+│   ├── test_stats.py              # Tests for batch statistics
+│   ├── test_utils.py              # Tests for utility functions
+│   └── __init__.py
+│
 ├── benchmark/
-│   └── benchmark_runner.py
-├── README.md
-└── pyproject.toml
+│   └── benchmark_runner.py        # Batch vs vectorised benchmarks (Assignment 2.1)
+│
+├── benchmark_stream/              # Streaming benchmarks (Assignment 2.2)
+│   └── stream_benchmark.py        # Batch fit vs streaming partial_fit timing
+│
+├── demo/
+│   └── quickstart.ipynb           # Original quickstart notebook (Assignment 2.1)
+│
+├── demo_stream/                   # Streaming demo (Assignment 2.2)
+│   ├── stream_demo.ipynb          # Full streaming demo notebook
+│   ├── iris_stream.csv            # Demo dataset (300 samples, 3 classes)
+│   ├── stream_benchmark.py        # Batch vs streaming timing benchmark
+│   ├── tree_accuracy.png          # Decision tree accuracy over chunks
+│   ├── model_comparison.png       # Decision tree vs random forest comparison
+│   ├── predictions_vs_truth.png   # Predictions vs ground truth plot
+│   ├── confusion_matrix.png       # Cumulative confusion matrix
+│   ├── fit_times.png              # Training time per chunk
+│   └── cumulative_accuracy.png    # Cumulative accuracy over chunks
+│
+├── .gitignore
+├── pyproject.toml
+└── README.md
 ```
 
 ---
 
-## Installation
+## Requirements
 
-Clone the repository and install in editable mode with dev dependencies:
+- Python 3.11+
+- NumPy
+- matplotlib
+
+No other external libraries required. scikit-learn, pandas, and PyTorch are not used.
 
 ```bash
-git clone https://github.com/SD-adelaideuni/NumCompute.git
-cd NumCompute
-pip install -e ".[dev]"
+pip install numpy matplotlib
 ```
-
-**Requirements:** Python ≥ 3.10, NumPy ≥ 1.24
 
 ---
 
 ## Quick Start
 
+### Streaming Pipeline
+
 ```python
-import numpy as np
-from numcompute.io import load_csv, save_csv
-from numcompute.preprocessing import StandardScaler, MinMaxScaler, OneHotEncoder
-from numcompute.pipeline import Pipeline
+from numcompute_stream.preprocessing import StandardScaler, SimpleImputer
+from numcompute_stream.ensemble import EnsembleClassifier
+from numcompute_stream.pipeline import Pipeline
+from numcompute_stream.stream import StreamTrainer
 
-# Load data
-X = load_csv("data.csv")
-
-# Build and run a pipeline
 pipe = Pipeline([
-    ('scale', StandardScaler()),
+    ('imputer', SimpleImputer(strategy='mean')),
+    ('scaler',  StandardScaler()),
+    ('model',   EnsembleClassifier(n_estimators=10, method='random_forest')),
 ])
-X_transformed = pipe.fit_transform(X)
 
-# Save results
-save_csv(X_transformed, "output.csv")
+trainer = StreamTrainer(pipeline=pipe, verbose=True)
+
+for X_chunk, y_chunk in data_stream:
+    trainer.fit_chunk(X_chunk, y_chunk)
+    trainer.score_chunk(X_chunk, y_chunk)
+
+print(trainer.summary())
 ```
 
----
-
-## Module API Reference
-
-### `io.py` — Data I/O (Shaun D'souza)
-
-| Function | Description |
-|----------|-------------|
-| `load_csv(filepath, delimiter, dtype, missing_values, filling_values)` | Load CSV → 2-D NumPy array. Missing cells filled with `np.nan` by default. |
-| `load_csv_chunked(filepath, chunksize, **kwargs)` | Generator yielding row-chunks for large files. |
-| `save_csv(array, filepath, delimiter, header)` | Write 1-D or 2-D array to CSV via `numpy.savetxt`. |
+### Load CSV and Stream Chunks
 
 ```python
-from numcompute.io import load_csv, load_csv_chunked, save_csv
+from numcompute.io import load_csv_chunked
 
-# Full load
-X = load_csv("data.csv", delimiter=",")
+for chunk in load_csv_chunked('data.csv', chunksize=30):
+    X_chunk = chunk[:, :-1]
+    y_chunk = chunk[:, -1].astype(int)
+    trainer.fit_chunk(X_chunk, y_chunk)
+    trainer.score_chunk(X_chunk, y_chunk)
+```
 
-# Streaming load for large files
-for chunk in load_csv_chunked("big_data.csv", chunksize=1000):
-    process(chunk)
+### Streaming Statistics
 
-# Save
-save_csv(X, "output.csv", header="col1,col2,col3")
+```python
+from numcompute_stream.stats import StreamingStats
+
+ss = StreamingStats(window_size=100)
+for chunk in chunks:
+    ss.update(chunk)
+
+print(ss.get_mean())
+print(ss.get_std())
+```
+
+### Streaming Metrics
+
+```python
+from numcompute_stream.metrics import StreamingMetrics
+
+sm = StreamingMetrics()
+for y_true_chunk, y_pred_chunk in stream:
+    sm.update(y_true_chunk, y_pred_chunk)
+
+print(sm.result())
+print(sm.get_accuracy_history())
+```
+
+### Visualisation
+
+```python
+from numcompute_stream import visualise
+
+visualise.plot_metric_over_time(
+    trainer.get_accuracy_history(),
+    title='Accuracy over Chunks',
+    ylabel='Accuracy',
+)
+
+visualise.compare_models(
+    tree_accs, rf_accs,
+    labels=('Decision Tree', 'Random Forest'),
+)
+
+visualise.plot_predictions_vs_ground_truth(y_true, y_pred)
 ```
 
 ---
 
-### `preprocessing.py` — Data Preprocessing (Shaun D'souza)
+## Module Reference
 
-All classes implement the `fit(X) → self`, `transform(X) → X_out`, `fit_transform(X) → X_out` API.
+### `numcompute_stream.stats`
+
+| Class / Function | Description |
+|---|---|
+| `StreamingStats` | Per-feature running mean, variance, min, max using Welford's algorithm |
+| `.update(X_chunk)` | Incorporate a new chunk into running statistics |
+| `.get_mean()` | Per-feature running mean |
+| `.get_std()` | Per-feature running standard deviation |
+| `.get_histogram()` | Histogram from sliding window buffer |
+| `.reset()` | Clear all accumulated state |
+
+### `numcompute_stream.metrics`
+
+| Class / Function | Description |
+|---|---|
+| `StreamingMetrics` | Accumulates accuracy, precision, recall, F1, confusion matrix over chunks |
+| `.update(y_true, y_pred)` | Update with a new chunk |
+| `.reset()` | Clear all accumulated state |
+| `.result()` | Return full metrics dict |
+| `.get_accuracy_history()` | Per-chunk accuracy list |
+| `.get_rolling_accuracy()` | Accuracy over the rolling window only |
+
+### `numcompute_stream.preprocessing`
 
 | Class | Description |
-|-------|-------------|
-| `StandardScaler` | Z-score standardisation: subtract mean, divide by std |
-| `MinMaxScaler` | Scale features to a given range (default [0, 1]) |
-| `OneHotEncoder` | Encode categorical integer columns as binary columns |
-| `SimpleImputer` | Replace NaN values with a constant or column statistic |
+|---|---|
+| `StandardScaler` | Z-score normalisation with `partial_fit` using Welford's algorithm |
+| `MinMaxScaler` | Min-max scaling with `partial_fit` tracking running min/max |
+| `SimpleImputer` | Fill NaNs with running mean, median, or constant |
+| `OneHotEncoder` | One-hot encoding with incremental category discovery |
 
-```python
-from numcompute.preprocessing import StandardScaler, MinMaxScaler, OneHotEncoder
+### `numcompute_stream.tree`
 
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
+| Class | Description |
+|---|---|
+| `DecisionTreeClassifier` | Depth-limited tree with Gini or entropy splitting, built from scratch |
+| `.fit(X, y)` | Batch training |
+| `.partial_fit(X_chunk, y_chunk)` | Incremental training — accumulates data and re-grows |
+| `.predict(X)` | Predict class labels (NaN-safe) |
+| `.predict_proba(X)` | Predict class probabilities |
 
-encoder = OneHotEncoder()
-X_encoded = encoder.fit_transform(X_categorical)
-```
+Supports: `max_depth`, `min_samples_split`, `min_samples_leaf`, `max_features`, `criterion`
 
----
+### `numcompute_stream.ensemble`
 
-### `sort_search.py` — Sorting & Searching (Manini Sikri)
+| Class | Description |
+|---|---|
+| `EnsembleClassifier` | N decision trees with Bagging or Random Forest strategy |
+| `.fit(X, y)` | Batch training with bootstrap sampling |
+| `.partial_fit(X_chunk, y_chunk)` | Each tree gets a bootstrap sample from the chunk |
+| `.predict(X)` | Majority vote across all trees |
+| `.predict_proba(X)` | Average probability across all trees |
+| `.score(X, y)` | Accuracy on (X, y) |
 
-| Function | Description |
-|----------|-------------|
-| `stable_sort(arr, axis)` | Wrapper around `np.sort(kind='stable')` |
-| `multi_key_sort(arr, keys)` | Sort 2-D array by multiple column indices |
-| `topk(values, k, largest, return_indices)` | Top-k via `np.argpartition` |
-| `quickselect(arr, k)` | Educational quickselect implementation |
-| `binary_search(sorted_array, x)` | Returns `(insertion_index, exists_bool)` |
+### `numcompute_stream.pipeline`
 
----
+| Class | Description |
+|---|---|
+| `Pipeline` | Chain of transformers + final estimator |
+| `.fit(X, y)` | Batch training through all steps |
+| `.partial_fit(X, y)` | Update each step incrementally |
+| `.predict(X)` | Transform then predict |
+| `.score(X, y)` | Accuracy on (X, y) |
+| `FeatureUnion` | Parallel transformers concatenated column-wise |
 
-### `rank.py` — Ranking (Manini Sikri)
+### `numcompute_stream.stream`
 
-| Function | Description |
-|----------|-------------|
-| `rank(data, method)` | Rank with tie handling: `'average'`, `'dense'`, `'ordinal'` |
-| `percentile(data, q, interpolation)` | Percentile with `'linear'`, `'lower'`, `'higher'`, `'midpoint'` |
+| Class | Description |
+|---|---|
+| `StreamTrainer` | Orchestrates fit/score loop with logging |
+| `.fit_chunk(X, y)` | Train on one chunk, log timing and memory |
+| `.score_chunk(X, y)` | Score on one chunk, update metrics |
+| `.fit_score_chunk(X, y)` | Train then score in one call |
+| `.prequential_chunk(X, y)` | Test-then-train evaluation protocol |
+| `.get_logs()` | Full per-chunk log |
+| `.get_accuracy_history()` | Per-chunk accuracy list |
+| `.summary()` | Training summary dict |
 
----
-
-### `stats.py` — Descriptive Statistics (Sujeet Ghosh)
-
-| Function | Description |
-|----------|-------------|
-| `mean(X, axis)` | Axis-wise mean with NaN handling |
-| `median(X, axis)` | Axis-wise median |
-| `std(X, axis)` | Standard deviation (Welford streaming) |
-| `histogram(X, bins)` | Histogram counts and bin edges |
-| `quantile(X, q, axis)` | Quantiles with NaN handling |
-
----
-
-### `metrics.py` — Evaluation Metrics (Sujeet Ghosh)
-
-| Function | Description |
-|----------|-------------|
-| `accuracy(y_true, y_pred)` | Classification accuracy |
-| `precision(y_true, y_pred, average)` | Precision score |
-| `recall(y_true, y_pred, average)` | Recall score |
-| `f1(y_true, y_pred, average)` | F1 score |
-| `confusion_matrix(y_true, y_pred)` | Confusion matrix as 2-D array |
-| `mse(y_true, y_pred)` | Mean squared error |
-| `roc_curve(y_true, y_score)` | *(Bonus)* ROC curve FPR/TPR arrays |
-| `auc(fpr, tpr)` | *(Bonus)* Area under the curve |
-
----
-
-### `optim.py` — Gradient Estimation (Sushmeet Matharu)
+### `numcompute_stream.visualise`
 
 | Function | Description |
-|----------|-------------|
-| `grad(f, x, h, method)` | Finite-difference gradient: `'central'` or `'forward'` |
-| `jacobian(F, x, h, method)` | Jacobian matrix for vector-valued functions |
-
----
-
-### `pipeline.py` — Pipeline (Sushmeet Matharu)
-
-| Class/Function | Description |
-|----------------|-------------|
-| `Pipeline(steps)` | Chain transformers; supports `fit`, `transform`, `fit_transform` |
-
-```python
-from numcompute.pipeline import Pipeline
-from numcompute.preprocessing import StandardScaler, OneHotEncoder
-
-pipe = Pipeline([
-    ('scale', StandardScaler()),
-    ('encode', OneHotEncoder()),
-])
-X_out = pipe.fit_transform(X)
-```
-
----
-
-## API Conventions
-
-These conventions are consistent across all modules:
-
-- **Array shape:** rows = samples, columns = features — shape `(n_samples, n_features)`
-- **Axis semantics:** `axis=0` operates over rows (per-column stats); `axis=1` operates over columns (per-row stats)
-- **Missing values:** represented as `np.nan` throughout; all functions handle NaN safely
-- **Scaler API:** all preprocessing classes implement `fit(X)`, `transform(X)`, `fit_transform(X)`
-- **Metrics API:** all metric functions take `(y_true, y_pred)` as first two positional arguments
-- **Error messages:** `ValueError` for shape/type mismatches; `FileNotFoundError` for missing files
+|---|---|
+| `plot_metric_over_time()` | Line chart of a metric across chunks with rolling mean |
+| `compare_models()` | Side-by-side model comparison with difference plot |
+| `plot_predictions_vs_ground_truth()` | Strip chart of predictions vs actuals |
+| `plot_confusion_matrix()` | Heatmap of cumulative confusion matrix |
+| `plot_fit_times()` | Bar chart of training time per chunk |
 
 ---
 
 ## Running Tests
 
 ```bash
-# Run all tests
-pytest tests/ -v
-
-# Run with coverage report
-pytest tests/ -v --cov=numcompute --cov-report=term-missing
-
-# Run a specific module's tests
-pytest tests/test_io.py -v
+python -m pytest tests/test_numcompute_stream.py -v
 ```
 
-The test suite contains ≥ 20 unit tests covering edge cases including empty arrays, all-equal values, duplicates and ties, extreme `k` values, NaNs, and non-contiguous strides.
+39 tests covering all streaming modules including edge cases such as NaN inputs, empty chunks, single-sample chunks, zero-variance features, and feature count mismatches.
 
 ---
 
-## Benchmarks
-
-Run the benchmark suite to compare vectorised implementations against Python loop equivalents:
+## Running the Demo
 
 ```bash
-python benchmark/benchmark_runner.py
+cd demo_stream
+jupyter notebook stream_demo.ipynb
 ```
 
-Sample performance table (Apple M-series, NumPy 1.26):
-
-| Operation | Loop (ms) | Vectorised (ms) | Speedup |
-|-----------|-----------|-----------------|---------|
-| StandardScaler (n=100k) | TBD | TBD | TBD |
-| Top-k (n=100k, k=10) | TBD | TBD | TBD |
-| MSE (n=100k) | TBD | TBD | TBD |
-
-*(Table will be populated after benchmarking is complete)*
+The demo notebook:
+1. Loads `iris_stream.csv` using `numcompute.io.load_csv_chunked`
+2. Splits into 10 chunks of 30 rows to simulate streaming
+3. Trains a Decision Tree and Random Forest pipeline incrementally
+4. Logs and visualises accuracy, confusion matrix, fit times, and model comparison
 
 ---
 
-## Design Principles
+## Running the Benchmark
 
-- **No Python loops** in core computations — all operations are fully vectorised using NumPy
-- **Numerical stability** — handles overflow/underflow, NaNs, ties, and uses stable forms (e.g. max-shifted softmax, `logsumexp`)
-- **Consistent API** — clear `axis` semantics, documented input/output shapes, informative error messages
-- **Comprehensive docstrings** — every function documents parameters, return values, shapes, exceptions, and time/space complexity
+```bash
+python benchmark_stream/stream_benchmark.py --quick
+```
 
+Compares batch `.fit()` vs streaming `.partial_fit()` timing for Decision Tree, Random Forest, and Pipeline. Use `--quick` for a fast run (5 iterations) or omit for full 20-run benchmark.
 
-## License
+---
 
-MIT License — see [LICENSE](LICENSE) for details.
+## Design Decisions
+
+**Welford's Algorithm** — Used for numerically stable running mean and variance in `StandardScaler`, `SimpleImputer`, and `StreamingStats`. Avoids storing all data while maintaining accuracy across chunks.
+
+**Tree Re-growth Strategy** — `partial_fit` accumulates all seen data and re-grows the tree from scratch on each call. This ensures the tree structure always reflects the full history, which is more accurate than incremental node splitting for moderate dataset sizes.
+
+**Bootstrap Sampling** — Each ensemble tree receives a different random bootstrap sample per chunk, ensuring diversity across estimators even with small chunk sizes.
+
+**NaN Safety** — All modules handle NaN values gracefully. The tree skips NaN features during splitting and routes NaN samples left by default during prediction. Scalers and imputers use `np.nanmean` and ignore NaN rows in Welford updates.

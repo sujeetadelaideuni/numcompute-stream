@@ -1,3 +1,13 @@
+"""
+stream.py — StreamTrainer for orchestrating incremental learning.
+
+Manages a pipeline through streaming data chunks, logging per-chunk
+metrics, timing, and memory usage. Supports fit-then-score and
+prequential (test-then-train) evaluation protocols.
+
+Author: Sujeet Ghosh
+Module: numcompute_stream.stream
+"""
 from __future__ import annotations
 import time
 import tracemalloc

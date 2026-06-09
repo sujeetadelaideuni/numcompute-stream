@@ -1,3 +1,13 @@
+"""
+stats.py — Descriptive and streaming statistics.
+
+Provides batch statistical functions (mean, variance, histogram, quantile)
+and a StreamingStats class for incremental per-feature statistics using
+Welford's online algorithm with optional sliding window support.
+
+Author: Sujeet Ghosh
+Module: numcompute_stream.stats
+"""
 from __future__ import annotations
 import numpy as np
 

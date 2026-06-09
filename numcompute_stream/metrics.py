@@ -1,3 +1,13 @@
+"""
+metrics.py — Classification metrics with streaming support.
+
+Provides batch metric functions (accuracy, precision, recall, f1, AUC)
+and a StreamingMetrics class that accumulates results chunk by chunk
+via .update(), with rolling window and cumulative tracking support.
+
+Author: Sujeet Ghosh
+Module: numcompute_stream.metrics
+"""
 from __future__ import annotations
 import numpy as np
 

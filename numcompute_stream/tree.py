@@ -1,3 +1,13 @@
+"""
+tree.py — Decision tree classifier with streaming support.
+
+Implements a depth-limited decision tree from scratch using only NumPy.
+Supports Gini impurity and entropy splitting criteria, NaN-safe prediction,
+and incremental growth via .partial_fit() for streaming data scenarios.
+
+Author: [Your Name]
+Module: numcompute_stream.tree
+"""
 from __future__ import annotations
 import numpy as np
 
@@ -193,10 +203,11 @@ class DecisionTreeClassifier:
         impurity = self._compute_impurity(y)
         node = _Node(depth=depth, n_samples=n_samples, impurity=impurity)
 
+        # Stop growing if any stopping criterion is met
         should_stop = (
             n_samples < self.min_samples_split
             or (self.max_depth is not None and depth >= self.max_depth)
-            or len(np.unique(y)) == 1
+            or len(np.unique(y)) == 1  # pure node — all same class
             or impurity == 0.0
         )
 
@@ -204,19 +215,23 @@ class DecisionTreeClassifier:
             node.value = self._leaf_value(y)
             return node
 
+        # Find the best feature and threshold to split on
         feature, threshold = self._best_split(X, y)
 
         if feature is None:
+            # No valid split found — make this a leaf
             node.value = self._leaf_value(y)
             return node
 
         left_mask = X[:, feature] <= threshold
         right_mask = ~left_mask
 
+        # Enforce min_samples_leaf on both children
         if left_mask.sum() < self.min_samples_leaf or right_mask.sum() < self.min_samples_leaf:
             node.value = self._leaf_value(y)
             return node
 
+        # Recurse on left and right partitions
         node.feature = feature
         node.threshold = threshold
         node.left = self._grow_tree(X[left_mask], y[left_mask], depth + 1)
@@ -230,8 +245,10 @@ class DecisionTreeClassifier:
         best_threshold = None
         parent_impurity = self._compute_impurity(y)
 
+        # Only consider a random subset of features at each split (max_features)
         for feat in self._get_feature_indices(n_features):
             col = X[:, feat]
+            # Skip features that are NaN for all or all-but-one sample
             valid_mask = ~np.isnan(col)
             if valid_mask.sum() < 2:
                 continue
@@ -240,6 +257,7 @@ class DecisionTreeClassifier:
             unique_vals = np.unique(col_valid)
             if len(unique_vals) < 2:
                 continue
+            # Candidate thresholds are midpoints between consecutive sorted unique values
             thresholds = (unique_vals[:-1] + unique_vals[1:]) / 2.0
             gain = self._best_threshold_gain(col_valid, y_valid, thresholds, parent_impurity)
             if gain > best_gain:
@@ -292,9 +310,12 @@ class DecisionTreeClassifier:
         n = len(y)
         if n == 0:
             return 0.0
+        # Compute class probabilities over all known classes
         probs = np.array([np.sum(y == c) for c in self.classes_]) / n
         if self.criterion == "gini":
+            # Gini: 1 - sum(p_i^2), ranges from 0 (pure) to 1 - 1/C (maximally mixed)
             return float(1.0 - np.sum(probs ** 2))
+        # Entropy: -sum(p_i * log2(p_i)), filter zero probs to avoid log(0)
         safe_probs = probs[probs > 0]
         return float(-np.sum(safe_probs * np.log2(safe_probs)))
 

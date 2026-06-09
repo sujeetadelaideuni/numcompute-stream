@@ -1,3 +1,13 @@
+"""
+preprocessing.py — Data preprocessing with streaming support.
+
+Provides StandardScaler, MinMaxScaler, SimpleImputer, and OneHotEncoder.
+All classes support both batch .fit() and incremental .partial_fit() for
+chunk-wise updates using Welford's online algorithm for running statistics.
+
+Author: Sujeet Ghosh
+Module: numcompute_stream.preprocessing
+"""
 from __future__ import annotations
 import warnings
 import numpy as np

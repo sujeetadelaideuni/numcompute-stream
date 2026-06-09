@@ -1,3 +1,13 @@
+"""
+pipeline.py — ML pipeline with streaming support.
+
+Provides Pipeline and FeatureUnion classes for chaining transformers
+and models. Supports both batch .fit() and incremental .partial_fit()
+for streaming scenarios where data arrives in chunks.
+
+Author: Sujeet Ghosh
+Module: numcompute_stream.pipeline
+"""
 from __future__ import annotations
 from typing import Any, Protocol, runtime_checkable
 import numpy as np

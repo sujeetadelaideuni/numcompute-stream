@@ -1,3 +1,13 @@
+"""
+ensemble.py — Ensemble tree-based classifiers with streaming support.
+
+Implements Bagging and Random Forest ensemble methods built from multiple
+DecisionTreeClassifiers. Supports .partial_fit() for incremental adaptation
+and majority-vote prediction across all estimators.
+
+Author: Sujeet Ghosh
+Module: numcompute_stream.ensemble
+"""
 from __future__ import annotations
 import numpy as np
 from .tree import DecisionTreeClassifier
